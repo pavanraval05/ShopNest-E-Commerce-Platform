@@ -40,7 +40,7 @@ const CustomerRoutes = () => {
         {/* <OrderDetails/> */}
       </Routes>
       <div>
-        <footer />
+        <Footer />
       </div>
     </div>
   );
