@@ -1,7 +1,7 @@
 package com.pavan.model;
 
 import jakarta.persistence.*;
-
+@Embeddable
 @Entity
 public class PaymentInformation {
 
