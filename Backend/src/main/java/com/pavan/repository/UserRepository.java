@@ -1,8 +1,16 @@
 package com.pavan.repository;
 
-import com.pavan.model.User;
+
+import java.util.List;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import com.pavan.modal.User;
+
 public interface UserRepository extends JpaRepository<User, Long> {
-   public User findByEmail(String email);
+	
+	public User findByEmail(String email);
+	
+	public List<User> findAllByOrderByCreatedAtDesc();
+
 }

@@ -1,6 +1,8 @@
-package com.pavan.Config;
+package com.pavan.config;
 
 public class JwtConstant {
-    public static final String JWT_SECRET_KEY = "jbhvdjsjdfsdnjkcnsdjknksnksnksnksnksvcdssdc";
-    public static final String JWT_HEADER = "Authorization";
+	
+	public static final String SECRET_KEY="wpembytrwcvnryxksdbqwjebruyGHyudqgwveytrtrCSnwifoesarjbwe";
+	public static final String JWT_HEADER="Authorization";
+
 }

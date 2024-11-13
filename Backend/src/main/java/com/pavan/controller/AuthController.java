@@ -1,15 +1,6 @@
 package com.pavan.controller;
 
-import com.pavan.Config.JwtProvider;
-import com.pavan.exception.UserException;
-import com.pavan.model.User;
-import com.pavan.repository.UserRepository;
-import com.pavan.request.LoginRequest;
-import com.pavan.response.AuthResponse;
-import com.pavan.service.CustomerUserServiceImplementation;
-import org.antlr.v4.runtime.Token;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.HttpStatusCode;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -17,85 +8,113 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.pavan.config.JwtTokenProvider;
+import com.pavan.exception.UserException;
+import com.pavan.modal.User;
+import com.pavan.repository.UserRepository;
+import com.pavan.request.LoginRequest;
+import com.pavan.response.AuthResponse;
+import com.pavan.service.CartService;
+import com.pavan.service.CustomUserDetails;
+
+import jakarta.validation.Valid;
 
 @RestController
 @RequestMapping("/auth")
-public class AuthController  {
-    private UserRepository userRepository;
-    private JwtProvider jwtProvider;
-    private PasswordEncoder passwordEncoder;
-    private CustomerUserServiceImplementation customerUserServiceImplementation;
+public class AuthController {
 
-    public AuthController(UserRepository userRepository, JwtProvider jwtProvider, PasswordEncoder passwordEncoder, CustomerUserServiceImplementation customerUserServiceImplementation) {
-        this.userRepository = userRepository;
-        this.jwtProvider = jwtProvider;
-        this.passwordEncoder = passwordEncoder;
-        this.customerUserServiceImplementation = customerUserServiceImplementation;
-    }
+	private UserRepository userRepository;
+	private PasswordEncoder passwordEncoder;
+	private JwtTokenProvider jwtTokenProvider;
+	private CustomUserDetails customUserDetails;
+	private CartService cartService;
+	
+	public AuthController(UserRepository userRepository,PasswordEncoder passwordEncoder,JwtTokenProvider jwtTokenProvider,CustomUserDetails customUserDetails,CartService cartService) {
+		this.userRepository=userRepository;
+		this.passwordEncoder=passwordEncoder;
+		this.jwtTokenProvider=jwtTokenProvider;
+		this.customUserDetails=customUserDetails;
+		this.cartService=cartService;
+	}
+	
+	@PostMapping("/signup")
+	public ResponseEntity<AuthResponse> createUserHandler(@Valid @RequestBody User user) throws UserException{
+		
+		  	String email = user.getEmail();
+	        String password = user.getPassword();
+	        String firstName=user.getFirstName();
+	        String lastName=user.getLastName();
+	        String role=user.getRole();
+	        
+	        User isEmailExist=userRepository.findByEmail(email);
 
-    @PostMapping("/signup")
-    public ResponseEntity<AuthResponse> createUserHandler(@RequestBody User user) throws UserException {
-        String email = user.getEmail();
-        String password = user.getPassword();
-        String firstName = user.getFirstName();
-        String lastName = user.getLastName();
+	        // Check if user with the given email already exists
+	        if (isEmailExist!=null) {
+	        	
+	            throw new UserException("Email Is Already Used With Another Account");
+	        }
 
-        User EmailExist = userRepository.findByEmail(email);
+	        // Create new user
+			User createdUser= new User();
+			createdUser.setEmail(email);
+			createdUser.setFirstName(firstName);
+			createdUser.setLastName(lastName);
+	        createdUser.setPassword(passwordEncoder.encode(password));
+	        createdUser.setRole(role);
+	        
+	        User savedUser= userRepository.save(createdUser);
+	        
+	        cartService.createCart(savedUser);
 
-        if (EmailExist != null) {
-            throw new UserException("Email already exists");
+	        Authentication authentication = new UsernamePasswordAuthenticationToken(email, password);
+	        SecurityContextHolder.getContext().setAuthentication(authentication);
+	        
+	        String token = jwtTokenProvider.generateToken(authentication);
 
-        }
-        User createdUser = new User();
-        createdUser.setEmail(email);
-        createdUser.setPassword(passwordEncoder.encode(password));
-        createdUser.setFirstName(firstName);
-        createdUser.setLastName(lastName);
-        userRepository.save(createdUser);
-        Authentication authentication = new UsernamePasswordAuthenticationToken(email, password);
-        SecurityContextHolder.getContext().setAuthentication(authentication);
-        String token = jwtProvider.generateToken(authentication);
-
-        AuthResponse authResponse = new AuthResponse();
-        authResponse.setJwt(token);
-        authResponse.setMessage("Signup successful");
-
-
-        return new ResponseEntity<AuthResponse>(authResponse, HttpStatus.CREATED);
-    }
-
-    @PostMapping("/signin")
-    public ResponseEntity<AuthResponse> loginUserHandler(@RequestBody LoginRequest loginRequest) throws UserException {
-        String username =  loginRequest.getEmail();
+	        AuthResponse authResponse= new AuthResponse(token,true);
+			
+	        return new ResponseEntity<AuthResponse>(authResponse,HttpStatus.OK);
+		
+	}
+	
+	@PostMapping("/signin")
+    public ResponseEntity<AuthResponse> signin(@RequestBody LoginRequest loginRequest) {
+        String username = loginRequest.getEmail();
         String password = loginRequest.getPassword();
-
+        
+        System.out.println(username +" ----- "+password);
+        
         Authentication authentication = authenticate(username, password);
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        String token = jwtProvider.generateToken(authentication);
-
-        AuthResponse authResponse = new AuthResponse();
-        authResponse.setJwt(token);
-        authResponse.setMessage("Signin successful");
-        return new ResponseEntity<AuthResponse>(authResponse, HttpStatus.CREATED);
-
-
-
-
+        
+        
+        String token = jwtTokenProvider.generateToken(authentication);
+        AuthResponse authResponse= new AuthResponse();
+		
+		authResponse.setStatus(true);
+		authResponse.setJwt(token);
+		
+        return new ResponseEntity<AuthResponse>(authResponse,HttpStatus.OK);
     }
-    private Authentication authenticate(String email, String password) throws UserException {
-        UserDetails userDetails = customerUserServiceImplementation.loadUserByUsername(email);
-        if(userDetails == null) {
-            throw new BadCredentialsException("User not found");
-
+	
+	private Authentication authenticate(String username, String password) {
+        UserDetails userDetails = customUserDetails.loadUserByUsername(username);
+        
+        System.out.println("sign in userDetails - "+userDetails);
+        
+        if (userDetails == null) {
+        	System.out.println("sign in userDetails - null " + userDetails);
+            throw new BadCredentialsException("Invalid username or password");
         }
-
-        if(!passwordEncoder.matches(password, userDetails.getPassword())) {
-            throw new BadCredentialsException("Wrong password");
-
+        if (!passwordEncoder.matches(password, userDetails.getPassword())) {
+        	System.out.println("sign in userDetails - password not match " + userDetails);
+            throw new BadCredentialsException("Invalid username or password");
         }
-
         return new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
     }
 }
